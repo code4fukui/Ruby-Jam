@@ -1,0 +1,148 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Ruby-Jam for LEGO Techinic</title>
+</head><body>
+<h1>Ruby-Jam for LEGO Techinic</h1>
+
+<button id=btnc>connect BLE</button>
+<button id=btnd>disconnect BLE</button><br>
+<br>
+
+<span class=pane>
+<textarea id=src>
+while true
+  p light
+  if light > 300
+    motor 30, 30
+  else
+    motor 0,0
+  end
+end
+</textarea><br>
+<button id=btnrun>RUN</button>
+<button id=btnstop>STOP</button>
+</span>
+<span class=pane>
+<textarea id=taoutput></textarea>
+<button id=btnclear>CLEAR</button>
+</span>  
+
+<script type="module">
+import { LWP } from "https://code4fukui.github.io/LWP/LWP.js";
+import * as reqb from "https://code4fukui.github.io/LWP/reqbuilder.js";
+import { execRuby } from "./execRuby.js";
+
+let lightvalue = 0;
+let distancevalue = 0;
+
+const funcs = {};
+funcs.light = () => lightvalue;
+funcs.distance = () => 50;
+funcs.motor = (a, b) => console.log("motor", a, b);
+
+btnrun.disabled = true;
+btnstop.disabled = true;
+
+btnc.onclick = async () => {
+  const lwp = new LWP();
+  let frgb = null;
+  lwp.addDataListener(data => {
+    if (!frgb) {
+      return;
+    }
+    const rgb = frgb(data);
+    if (rgb) {
+      //console.log(rgb);
+      //document.body.style.backgroundColor = `rgb(${rgb.join(",")})`;
+      lightvalue = parseInt(rgb[0]);
+      //console.log(rgb)
+      //title.style.color = `rgb(${rgb.reduce((p, cur) => p + cur) < 127 * 3 ? "255,255,255" : "0,0,0"})`;
+      //inp.value = "#" + rgb.map(c => c.toString(16)).map(c => c.length == 1 ? "0" + c : c).join("");
+    }
+  });
+  //await lwp.connect({ autoCollect: false });
+  await lwp.connect({ autoCollect: true });
+  console.log(lwp.data);
+  const cport = 2; // Object.entries(lwp.data.ports).find((port, p) => p.devname == "Color Sensor")?.port;
+  if (cport) {
+    console.log("color sensor")
+    const mode = 5;
+    await lwp.startPortInput(cport, mode);
+    frgb = (data) => {
+      const aa = data.ports[cport].modes[mode].value;
+      //console.log(aa);
+      if (aa && aa.x) {
+        return [aa.x];
+      }
+      //const { x, y, z, a } = data.ports[cport].modes[mode].value;
+      //return [x, y, z];
+    };
+    const dport = 3;
+    await lwp.startPortInput(dport, mode);
+    // alert("can't detect Color Sensor");
+  } else {
+    console.log("mario sensor")
+    await lwp.startPortInput(1, 1);
+    frgb = (data) => data.ports[1].modes[1].value;
+  }
+  //btnpick.onclick = () => res.value += `"${inp.value}"\n`;
+  btnd.onclick = () => lwp.disconnect();
+
+  funcs.motor = async (a, b) => {
+    console.log("motor!!", a, b)
+    await lwp.write(reqb.createPortOutputStartPower(0, b));
+    await lwp.write(reqb.createPortOutputStartPower(1, -a));
+  };
+
+  btnrun.disabled = false;
+  // execRuby
+  const output = (s) => {
+    taoutput.value += s + "\n";
+    taoutput.scrollTop = taoutput.scrollHeight;
+  };
+
+  btnrun.onclick = async () => {
+    btnrun.disabled = true;
+    btnstop.disabled = false;
+    try {
+      const abortctrl = new AbortController();
+      btnstop.onclick = async () => {
+        abortctrl.abort();
+      };
+      await execRuby(src.value, { funcs, abortctrl, output });
+      output("done!");
+    } catch (e) {
+      if (!e) {
+        output("interrupted!");
+      } else {
+        output("err!");
+        output(e);
+      }
+    }
+    btnrun.disabled = false;
+    btnstop.disabled = true;
+  };
+
+  btnclear.onclick = () => taoutput.value = "";
+};
+
+
+
+</script>
+
+
+<style>
+.pane {
+  display: inline-block;
+  width: 45vw;
+  padding-right: 0.5em;
+}
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: 60vh;
+  padding: .5em;
+}
+table {
+  margin-top: 1em;
+}
+</style>

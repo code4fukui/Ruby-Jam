@@ -1,0 +1,87 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+
+<h1>Ruby-Jam</h1>
+
+<span class=pane>
+<textarea id=src>
+for n in 1..3
+  p n
+end
+</textarea><br>
+<button id=btnrun>RUN</button>
+<button id=btnstop>STOP</button>
+</span>
+<span class=pane>
+<textarea id=taoutput></textarea>
+<button id=btnclear>CLEAR</button>
+</span>
+
+<table>
+  <tr><th>light</th><td><input type=range id=inlight min=0 max=100></td>
+    <th>distance</th><td><input type=range id=indistance min=0 max=100></td></tr>
+  <tr><th>motor-L</th><td><input type=range id=inmotorleft min=-100 max=100></td>
+    <th>motor-R</th><td><input type=range id=inmotorright min=-100 max=100></td></tr>
+</table>
+
+<script type="module">
+import { execRuby } from "./execRuby.js";
+
+let lightvalue = 0;
+let distancevalue = 0;
+
+const funcs = {};
+funcs.light = () => inlight.value;
+funcs.distance = () => indistance.value;
+funcs.motor = (a, b) => {
+  inmotorleft.value = a;
+  inmotorright.value = b;
+};
+
+const output = (s) => {
+  taoutput.value += s + "\n";
+  taoutput.scrollTop = taoutput.scrollHeight;
+};
+
+btnstop.disabled = true;
+btnrun.onclick = async () => {
+  btnrun.disabled = true;
+  btnstop.disabled = false;
+  try {
+    const abortctrl = new AbortController();
+    btnstop.onclick = async () => {
+      abortctrl.abort();
+    };
+    await execRuby(src.value, { funcs, abortctrl, output });
+    output("done!");
+  } catch (e) {
+    if (!e) {
+      output("interrupted!");
+    } else {
+      output("err!");
+      output(e);
+    }
+  }
+  btnrun.disabled = false;
+  btnstop.disabled = true;
+};
+
+btnclear.onclick = () => taoutput.value = "";
+
+</script>
+
+<style>
+.pane {
+  display: inline-block;
+  width: 45vw;
+  padding-right: 0.5em;
+}
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: 60vh;
+  padding: .5em;
+}
+table {
+  margin-top: 1em;
+}
+</style>

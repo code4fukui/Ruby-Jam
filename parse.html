@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<script type="module">
+import parser from "https://code4fukui.github.io/ruby_parser/RubyParser.js";
+import { sleep } from "https://js.sabae.cc/sleep.js";
+
+const src = `
+a = light
+c = distance
+if a == 5 then
+  puts 5
+end
+while a < 20 do
+  l = light
+  if l > 100 then
+    motor 50, 40
+  else
+    motor 40, 50
+  end
+  puts a
+  a = a + 1
+  sleep 0.5
+end
+`;
+
+const p = parser.parse(src);
+console.log(JSON.stringify(p.ast, null, 2))
+
+const vars = {};
+
+const funcs = {};
+funcs.light = () => 3;
+funcs.distance = () => 50;
+funcs.motor = (a, b) => console.log("motor", a, b);
+
+const exec = async (ast) => {
+  if (ast.statements) {
+    for (const st of ast.statements) {
+      await exec(st);
+    }
+  } else if (ast.cond) {
+    if (ast.body) { // loop
+      for (;;) {
+        const flg = await exec(ast.cond);
+        if (!flg) {
+          break;
+        }
+        await exec(ast.body);
+      }
+    } else {
+      const flg = await exec(ast.cond);
+      if (flg && ast.if_true) {
+        await exec(ast.if_true);
+      } else if (!flg && ast.if_false) {
+        await exec(ast.if_false);
+      }
+    }
+  } else if (ast.method_name) {
+    const fn = ast.method_name;
+    const recv = ast.recv?.name;
+    const args = [];
+    for (const a of ast.args) {
+      args.push(await exec(a));
+    }
+    if (!recv) {
+      //console.log("call ", fn, args);
+      if (fn == "sleep") {
+        await sleep(args[0] * 1000);
+      } else if (fn == "puts") {
+        console.log(args);
+      } else {
+        const f = funcs[fn];
+        if (f) {
+          return f(...args);
+        }
+        throw new Error("undef fn: " + fn);
+      }
+    } else {
+      //console.log(recv + " = call ", fn, args);
+      if (fn == "==") {
+        return vars[recv] == args[0];
+      } else if (fn == "+") {
+        return parseFloat(vars[recv]) + parseFloat(args[0]);
+      } else if (fn == "-") {
+        return parseFloat(vars[recv]) - parseFloat(args[0]);
+      } else if (fn == "<") {
+        return parseFloat(vars[recv]) < parseFloat(args[0]);
+      } else if (fn == "<=") {
+        return parseFloat(vars[recv]) <= parseFloat(args[0]);
+      } else if (fn == ">") {
+        return parseFloat(vars[recv]) > parseFloat(args[0]);
+      } else if (fn == ">=") {
+        return parseFloat(vars[recv]) >= parseFloat(args[0]);
+      } else {
+        throw new Error("undef fn: " + fn)
+      }
+    }
+  } else if (ast.name) {
+    if (ast.value) {
+      return vars[ast.name] = await exec(ast.value);
+    }
+    return vars[ast.name];
+  } else if (ast.value) {
+    return ast.value;
+  } else {
+    return true;
+  }
+};
+await exec(p.ast);
+
+</script>
