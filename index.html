@@ -52,13 +52,13 @@ btnrun.onclick = async () => {
       abortctrl.abort();
     };
     const debug = true;
-    await execRuby(src.value.toLowerCase(), { funcs, abortctrl, output, debug });
-    output("done!");
+    await execRuby(src.value, { funcs, abortctrl, output, debug });
+    output("OK");
   } catch (e) {
     if (!e) {
-      output("interrupted!");
+      output("Break");
     } else {
-      output("err!");
+      //output("err!");
       output(e);
     }
   }
