@@ -26,6 +26,9 @@ end
 <button id=btnclear>CLEAR</button>
 </span>  
 
+<hr>
+<a href=https://github.com/code4fukui/Ruby-Jam>src on GitHub</a>
+
 <script type="module">
 import { LWP } from "https://code4fukui.github.io/LWP/LWP.js";
 import * as reqb from "https://code4fukui.github.io/LWP/reqbuilder.js";
@@ -109,12 +112,11 @@ btnc.onclick = async () => {
         abortctrl.abort();
       };
       await execRuby(src.value, { funcs, abortctrl, output });
-      output("done!");
+      output("OK");
     } catch (e) {
       if (!e) {
-        output("interrupted!");
+        output("Break");
       } else {
-        output("err!");
         output(e);
       }
     }
@@ -145,5 +147,8 @@ textarea {
 }
 table {
   margin-top: 1em;
+}
+a {
+  color: gray !important;
 }
 </style>
