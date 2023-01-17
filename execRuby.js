@@ -1,12 +1,31 @@
 import parser from "https://code4fukui.github.io/ruby_parser/RubyParser.js";
 
-export const execRuby = async (src, opts) => {
+export const execRuby = async (src, opts = {}) => {
   const funcs = opts.funcs || {};
   const abortctrl = opts.abortctrl;
   const output = opts.output || ((s) => console.log(s));
+  const debug = opts.debug;
 
-  const vars = {};
+  const globalvars = {};
+  let vars = {};
+  const setVar = (name, v) => {
+    if (name[0] == "$") {
+      globalvars[name] = v;
+    } else {
+      vars[name] = v;
+    }
+    return v;
+  };
+  const getVar = (name) => {
+    if (name[0] == "$") {
+      return globalvars[name];
+    }
+    return vars[name];
+  };
+  const varstack = [];
+
   let flgstop = false;
+  const localfuncs = {}
 
   let tsleep = null;
   let treject = null;
@@ -72,6 +91,23 @@ export const execRuby = async (src, opts) => {
           //console.log(...args.map(a => a.raw ? new TextDecoder().decode(a.raw) : a));
           output(args.join(" "));
         } else {
+          const localf = localfuncs[fn];
+          if (localf) {
+            varstack.push(vars);
+            vars = {};
+            if (localf.args) {
+              //console.log("len", localf.args.args, localf.args.length)
+              const largs = localf.args.args;
+              for (let i = 0; i < largs.length; i++) {
+                const name = largs[i].name;
+                vars[name] = args[i];
+              }
+            }
+            //console.log(localvars);
+            const res = await exec(localf.body);
+            vars = varstack.pop();
+            return res;
+          }
           const f = funcs[fn];
           if (f) {
             return await f(...args);
@@ -110,10 +146,15 @@ export const execRuby = async (src, opts) => {
         }
       }
     } else if (ast.name) {
-      if (ast.value) {
-        return vars[ast.name] = await exec(ast.value);
+      if (!ast.body) {
+        if (ast.value) {
+          setVar(ast.name, await exec(ast.value));
+        }
+        return getVar(ast.name);
+      } else {
+        localfuncs[ast.name] = ast;
+        return null;
       }
-      return vars[ast.name];
     } else if (ast.value) {
       if (ast.value.raw) {
         const r = ast.value.raw;
@@ -130,11 +171,13 @@ export const execRuby = async (src, opts) => {
   };
   
   const p = parser.parse(src);
-  //console.log(p);
-  if (p.diagnostics.length > 0) {
+  if (debug) {
+    console.log(JSON.stringify(p, null, 2));
+  }
+  if (p.diagnostics.filter(d => d.level == "error").length > 0) {
     throw new Error(JSON.stringify(p.diagnostics, null, 2));
   }
-  console.log(JSON.stringify(p.ast, null, 2));
+  //console.log(JSON.stringify(p.ast, null, 2));
   if (abortctrl) {
     abortctrl.signal.addEventListener("abort", () => {
       interruptSleep();
