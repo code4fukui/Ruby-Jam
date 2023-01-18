@@ -72,6 +72,22 @@ export const execRuby = async (src, opts = {}) => {
         }
       }
       return;
+    } else if (astname == "Until") {
+      try {
+        for (;;) {
+          const flg = await exec(ast.cond);
+          if (flg) {
+            break;
+          }
+          if (ast.body) await exec(ast.body);
+          await sleepRuby(0.001); // enable interrupt
+        }
+      } catch (e) {
+        if (!(e instanceof Break)) {
+          throw e;
+        }
+      }
+      return;
     } else if (astname == "For") {
       const vname = ast.iterator.name;
       const start = await exec(ast.iteratee.left);

@@ -20,6 +20,22 @@ end
 });
 */
 
+Deno.test("while", async () => {
+  t.assertEquals(await execRuby(`n = 0
+while n < 3
+ n = n + 1
+end
+`), undefined);
+});
+
+Deno.test("until", async () => {
+  t.assertEquals(await execRuby(`n = 0
+until n > 3
+ n = n + 1
+end
+`), undefined);
+});
+
 Deno.test("for null block", async () => {
   t.assertEquals(await execRuby(`for i in 1..3
 end
