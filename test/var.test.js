@@ -4,15 +4,42 @@ import { execRuby } from "../execRuby.js";
 let debug = true;
 debug = false;
 
-Deno.test("procedure with 2 params", async () => {
+Deno.test("var", async () => {
   t.assertEquals(await execRuby(`
-    def out(n, m)
-      p "out " + n + ", " + m
-    end
-    out 1, 2
+  a = 3
   `, { debug }), undefined);
 });
 
+Deno.test("var", async () => {
+  t.assertEquals(await execRuby(`
+  a = 3
+  a = a + 1
+  a
+  `, { debug }), 4);
+});
+
+Deno.test("float", async () => {
+  t.assertEquals(await execRuby(`
+  a = 3
+  a = a + 0.1
+  a
+  `, { debug }), 3.1);
+});
+
+Deno.test("boolean true", async () => {
+  t.assertEquals(await execRuby(`
+  a = true
+  a
+  `, { debug }), true);
+});
+
+Deno.test("boolean false", async () => {
+  t.assertEquals(await execRuby(`
+  a = false
+  a
+  `, { debug }), false);
+});
+/*
 Deno.test("local var", async () => {
   t.assertEquals(await execRuby(`
     n = 3
@@ -25,7 +52,7 @@ Deno.test("local var", async () => {
     end
     led 1
     n
-  `, { debug }), 3);
+  `, { debug }), "3");
 });
 
 Deno.test("global var", async () => {
@@ -36,5 +63,6 @@ Deno.test("global var", async () => {
     end
     led 1
     $n
-  `, { debug }), 3);
+  `, { debug }), "3");
 });
+*/

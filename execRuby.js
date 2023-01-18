@@ -8,20 +8,7 @@ export const execRuby = async (src, opts = {}) => {
 
   const globalvars = {};
   let vars = {};
-  const setVar = (name, v) => {
-    if (name[0] == "$") {
-      globalvars[name] = v;
-    } else {
-      vars[name] = v;
-    }
-    return v;
-  };
-  const getVar = (name) => {
-    if (name[0] == "$") {
-      return globalvars[name];
-    }
-    return vars[name];
-  };
+
   const varstack = [];
 
   let flgstop = false;
@@ -45,38 +32,38 @@ export const execRuby = async (src, opts = {}) => {
     if (!ast) {
       throw new Error("ast is null");
     }
-    if (ast.statements) {
+    const astname = ast.constructor.name;
+    //console.log({astname})
+    if (astname == "Begin") {
       let val = null;
       for (const st of ast.statements) {
         val = await exec(st);
         await sleepRuby(0.001); // enable interrupt
       }
       return val;
-    } else if (ast.cond) {
-      if (ast.body) { // while } || (!ast.if_true && !ast.if_false)) { // loop
-        for (;;) {
-          const flg = await exec(ast.cond);
-          if (!flg) {
-            break;
-          }
-          if (ast.body) await exec(ast.body);
-          await sleepRuby(0.001); // enable interrupt
-        }
-      } else { // if
-        const flg = await exec(ast.cond);
-        if (flg && ast.if_true) {
-          await exec(ast.if_true);
-        } else if (!flg && ast.if_false) {
-          await exec(ast.if_false);
-        }
+    } else if (astname == "If") {
+      const flg = await exec(ast.cond);
+      if ((flg != 0) && ast.if_true) {
+        await exec(ast.if_true);
+      } else if (!flg && ast.if_false) {
+        await exec(ast.if_false);
       }
-    } else if (ast.iterator) { // for
+    } else if (astname == "While") {
+      for (;;) {
+        const flg = await exec(ast.cond);
+        if (!flg) {
+          break;
+        }
+        if (ast.body) await exec(ast.body);
+        await sleepRuby(0.001); // enable interrupt
+      }
+    } else if (astname == "For") {
       const vname = ast.iterator.name;
       const start = await exec(ast.iteratee.left);
       const end = await exec(ast.iteratee.right);
       for (let i = start; i <= end; i++) {
         vars[vname] = i;
-        await exec(ast.body);
+        if (ast.body) await exec(ast.body);
       }
     } else if (ast.method_name) {
       const fn = ast.method_name;
@@ -146,17 +133,22 @@ export const execRuby = async (src, opts = {}) => {
           throw new Error("undef fn: " + fn)
         }
       }
-    } else if (ast.name) {
-      if (!ast.body) {
-        if (ast.value) {
-          setVar(ast.name, await exec(ast.value));
-        }
-        return getVar(ast.name);
-      } else {
-        localfuncs[ast.name] = ast;
-        return null;
-      }
-    } else if (ast.value) {
+    } else if (astname == "Def") { //ast.name) {
+      localfuncs[ast.name] = ast;
+      return null;
+    } else if (astname == "Lvasgn") {
+      vars[ast.name] = await exec(ast.value);
+    } else if (astname == "Gvasgn") {
+      globalvars[ast.name] = await exec(ast.value);
+    } else if (astname == "Lvar") {
+      return vars[ast.name];
+    } else if (astname == "Gvar") {
+      return globalvars[ast.name];
+    } else if (astname == "Int") {
+      return parseInt(ast.value);
+    } else if (astname == "Float") {
+      return parseFloat(ast.value);
+    } else if (astname == "Str") {
       if (ast.value.raw) {
         const r = ast.value.raw;
         const a = new Uint8Array(Object.keys(r).length);
@@ -165,9 +157,12 @@ export const execRuby = async (src, opts = {}) => {
         }
         return new TextDecoder().decode(a);
       }
-      return ast.value;
-    } else {
+    } else if (astname == "True") {
       return true;
+    } else if (astname == "False") {
+      return false;
+    } else {
+      throw new Error("unsupported astname: " + astname);
     }
   };
   
