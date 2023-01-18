@@ -1,6 +1,7 @@
 import parser from "https://code4fukui.github.io/ruby_parser/RubyParser.js";
 
 class Break {};
+class Next {};
 class Return {
   constructor(v) {
     this.value = v;
@@ -57,66 +58,84 @@ export const execRuby = async (src, opts = {}) => {
       }
       return;
     } else if (astname == "While") {
-      try {
-        for (;;) {
-          const flg = await exec(ast.cond);
-          if (!flg) {
-            break;
-          }
+      for (;;) {
+        const flg = await exec(ast.cond);
+        if (!flg) {
+          break;
+        }
+        try {
           if (ast.body) await exec(ast.body);
-          await sleepRuby(0.001); // enable interrupt
+        } catch (e) {
+          if (e instanceof Break) {
+            break;
+          } else if (e instanceof Next) {
+            continue;
+          } else {
+            throw e;
+          }
         }
-      } catch (e) {
-        if (!(e instanceof Break)) {
-          throw e;
-        }
+        await sleepRuby(0.001); // enable interrupt
       }
       return;
     } else if (astname == "Until") {
-      try {
-        for (;;) {
-          const flg = await exec(ast.cond);
-          if (flg) {
-            break;
-          }
+      for (;;) {
+        const flg = await exec(ast.cond);
+        if (flg) {
+          break;
+        }
+        try {
           if (ast.body) await exec(ast.body);
-          await sleepRuby(0.001); // enable interrupt
+        } catch (e) {
+          if (e instanceof Break) {
+            break;
+          } else if (e instanceof Next) {
+            continue;
+          } else {
+            throw e;
+          }
         }
-      } catch (e) {
-        if (!(e instanceof Break)) {
-          throw e;
-        }
+        await sleepRuby(0.001); // enable interrupt
       }
       return;
     } else if (astname == "For") {
       const vname = ast.iterator.name;
       const start = await exec(ast.iteratee.left);
       const end = await exec(ast.iteratee.right);
-      try {
-        for (let i = start; i <= end; i++) {
-          vars[vname] = i;
+      for (let i = start; i <= end; i++) {
+        vars[vname] = i;
+        try {
           if (ast.body) await exec(ast.body);
-        }
-      } catch (e) {
-        if (!(e instanceof Break)) {
-          throw e;
+        } catch (e) {
+          if (e instanceof Break) {
+            break;
+          } else if (e instanceof Next) {
+            continue;
+          } else {
+            throw e;
+          }
         }
       }
       return;
-    } else if (astname == "Block") {
-      try {
-        for (;;) {
+    } else if (astname == "Block") { // loop
+      for (;;) {
+        try {
           if (ast.body) await exec(ast.body);
-          await sleepRuby(0.001); // enable interrupt
+        } catch (e) {
+          if (e instanceof Break) {
+            break;
+          } else if (e instanceof Next) {
+            continue;
+          } else {
+            throw e;
+          }
         }
-      } catch (e) {
-        if (!(e instanceof Break)) {
-          throw e;
-        }
+        await sleepRuby(0.001); // enable interrupt
       }
       return;
     } else if (astname == "Break") {
       throw new Break();
+    } else if (astname == "Next") {
+      throw new Next();
     } else if (astname == "Send") {
       const fn = ast.method_name;
       const recv = ast.recv ? await exec(ast.recv) : undefined;
