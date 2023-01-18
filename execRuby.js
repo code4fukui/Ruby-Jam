@@ -1,5 +1,12 @@
 import parser from "https://code4fukui.github.io/ruby_parser/RubyParser.js";
 
+class Break {};
+class Return {
+  constructor(v) {
+    this.value = v;
+  }
+};
+
 export const execRuby = async (src, opts = {}) => {
   const funcs = opts.funcs || {};
   const abortctrl = opts.abortctrl;
@@ -49,35 +56,64 @@ export const execRuby = async (src, opts = {}) => {
         await exec(ast.if_false);
       }
     } else if (astname == "While") {
-      for (;;) {
-        const flg = await exec(ast.cond);
-        if (!flg) {
-          break;
+      try {
+        for (;;) {
+          const flg = await exec(ast.cond);
+          if (!flg) {
+            break;
+          }
+          if (ast.body) await exec(ast.body);
+          await sleepRuby(0.001); // enable interrupt
         }
-        if (ast.body) await exec(ast.body);
-        await sleepRuby(0.001); // enable interrupt
+      } catch (e) {
+        if (!(e instanceof Break)) {
+          throw e;
+        }
       }
+      return;
     } else if (astname == "For") {
       const vname = ast.iterator.name;
       const start = await exec(ast.iteratee.left);
       const end = await exec(ast.iteratee.right);
-      for (let i = start; i <= end; i++) {
-        vars[vname] = i;
-        if (ast.body) await exec(ast.body);
+      try {
+        for (let i = start; i <= end; i++) {
+          vars[vname] = i;
+          if (ast.body) await exec(ast.body);
+        }
+      } catch (e) {
+        if (!(e instanceof Break)) {
+          throw e;
+        }
       }
-    } else if (ast.method_name) {
+      return;
+    } else if (astname == "Block") {
+      try {
+        for (;;) {
+          if (ast.body) await exec(ast.body);
+          await sleepRuby(0.001); // enable interrupt
+        }
+      } catch (e) {
+        if (!(e instanceof Break)) {
+          throw e;
+        }
+      }
+      return;
+    } else if (astname == "Break") {
+      throw new Break();
+    } else if (astname == "Send") {
       const fn = ast.method_name;
-      const recv = ast.recv ? await exec(ast.recv) : null;
+      const recv = ast.recv ? await exec(ast.recv) : undefined;
       const args = [];
       for (const a of ast.args) {
         args.push(await exec(a));
       }
-      if (!recv) { // procedure
+      if (recv === undefined) { // procedure
         if (fn == "sleep") {
-          await sleepRuby(args[0]);
+          return await sleepRuby(args[0]);
         } else if (fn == "puts" || fn == "p") {
           //console.log(...args.map(a => a.raw ? new TextDecoder().decode(a.raw) : a));
           output(args.join(" "));
+          return;
         } else {
           const localf = localfuncs[fn];
           if (localf) {
@@ -105,41 +141,50 @@ export const execRuby = async (src, opts = {}) => {
       } else {
         if (fn == "==") {
           return recv == args[0];
-        } else if (fn == "+") {
-          const res = parseFloat(recv) + parseFloat(args[0]);
-          if (!isNaN(res)) {
-            return res;
-          }
-          return recv + args[0];
         } else if (fn == "-@") {
-          return -parseFloat(recv);
+          return -recv;
+        } else if (fn == "!") {
+          return !recv;
         } else if (fn == "-") {
-          return parseFloat(recv) - parseFloat(args[0]);
+          return recv - args[0];
+        } else if (fn == "+") {
+          return recv + args[0];
         } else if (fn == "*") {
-          return parseFloat(recv) * parseFloat(args[0]);
+          return recv * args[0];
         } else if (fn == "/") {
-          return parseFloat(recv) / parseFloat(args[0]);
+          return recv / args[0];
         } else if (fn == "%") {
-          return parseFloat(recv) % parseFloat(args[0]);
+          return recv % args[0];
         } else if (fn == "<") {
-          return parseFloat(recv) < parseFloat(args[0]);
+          return recv < args[0];
         } else if (fn == "<=") {
-          return parseFloat(recv) <= parseFloat(args[0]);
+          return recv <= args[0];
         } else if (fn == ">") {
-          return parseFloat(recv) > parseFloat(args[0]);
+          return recv > args[0];
         } else if (fn == ">=") {
-          return parseFloat(recv) >= parseFloat(args[0]);
+          return recv >= args[0];
         } else {
           throw new Error("undef fn: " + fn)
         }
       }
-    } else if (astname == "Def") { //ast.name) {
+    } else if (astname == "Return") {
+      const v = await exec(ast.args);
+      throw new Return(v);
+    } else if (astname == "Or") {
+      const res = await exec(ast.lhs);
+      if (res) return res;
+      return await exec(ast.rhs);
+    } else if (astname == "And") {
+      const res = await exec(ast.lhs);
+      if (!res) return res;
+      return await exec(ast.rhs);
+    } else if (astname == "Def") {
       localfuncs[ast.name] = ast;
       return null;
     } else if (astname == "Lvasgn") {
-      vars[ast.name] = await exec(ast.value);
+      return vars[ast.name] = await exec(ast.value);
     } else if (astname == "Gvasgn") {
-      globalvars[ast.name] = await exec(ast.value);
+      return globalvars[ast.name] = await exec(ast.value);
     } else if (astname == "Lvar") {
       return vars[ast.name];
     } else if (astname == "Gvar") {
@@ -161,9 +206,8 @@ export const execRuby = async (src, opts = {}) => {
       return true;
     } else if (astname == "False") {
       return false;
-    } else {
-      throw new Error("unsupported astname: " + astname);
     }
+    throw new Error("unsupported astname: " + astname);
   };
   
   const p = parser.parse(src);
