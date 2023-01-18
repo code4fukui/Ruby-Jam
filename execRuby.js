@@ -49,6 +49,7 @@ export const execRuby = async (src, opts = {}) => {
       let val = null;
       for (const st of ast.statements) {
         val = await exec(st);
+        await sleepRuby(0.001); // enable interrupt
       }
       return val;
     } else if (ast.cond) {
