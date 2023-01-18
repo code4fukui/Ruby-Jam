@@ -7,7 +7,7 @@ debug = false;
 Deno.test("var", async () => {
   t.assertEquals(await execRuby(`
   a = 3
-  `, { debug }), undefined);
+  `, { debug }), 3);
 });
 
 Deno.test("var", async () => {

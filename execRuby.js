@@ -55,6 +55,7 @@ export const execRuby = async (src, opts = {}) => {
       } else if (!flg && ast.if_false) {
         await exec(ast.if_false);
       }
+      return;
     } else if (astname == "While") {
       try {
         for (;;) {
@@ -127,8 +128,15 @@ export const execRuby = async (src, opts = {}) => {
                 vars[name] = args[i];
               }
             }
-            //console.log(localvars);
-            const res = await exec(localf.body);
+            let res = undefined;
+            try {
+              res = await exec(localf.body);
+            } catch (e) {
+              if (!(e instanceof Return)) {
+                throw e;
+              }
+              res = e.value;
+            }
             vars = varstack.pop();
             return res;
           }
@@ -168,7 +176,7 @@ export const execRuby = async (src, opts = {}) => {
         }
       }
     } else if (astname == "Return") {
-      const v = await exec(ast.args);
+      const v = await exec(ast.args[0]);
       throw new Return(v);
     } else if (astname == "Or") {
       const res = await exec(ast.lhs);
@@ -207,6 +215,7 @@ export const execRuby = async (src, opts = {}) => {
     } else if (astname == "False") {
       return false;
     }
+    //console.log(JSON.stringify(ast, null, 2));
     throw new Error("unsupported astname: " + astname);
   };
   
