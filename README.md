@@ -1,5 +1,7 @@
 # Ruby-Jam
 
+> 日本語のREADMEはこちらです: [README.ja.md](README.ja.md)
+
 Ruby-Jam is a JavaScript-based Ruby interpreter that can be embedded into web applications.
 
 ## Features

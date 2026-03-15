@@ -1,20 +1,45 @@
 # Ruby-Jam
 
-Ruby-Jam は、Rubyコードを実行するWebアプリケーションです。
+Ruby-Jam は、Webブラウザ上で動作するJavaScriptベースのRubyインタプリタです。非同期でRubyコードを実行し、JavaScript環境から呼び出し可能な機能をサポートしています。
 
 ## デモ
-[Ruby-Jam](https://code4fukui.github.io/Ruby-Jam)で動作確認できます。
+[Ruby-Jam](https://code4fukui.github.io/Ruby-Jam)でデモを確認できます。
 
 ## 機能
-- Rubyコードの実行
-- 変数・関数の表示
-- 入力値の反映
+- Rubyコードの非同期実行
+- 変数、関数、ループ、条件分岐などの基本的なRuby構文のサポート
+- JavaScriptの関数をRubyコードから呼び出す機能
+- 動作検証のためのユニットテスト
 
 ## 必要環境
-特に必要ありません。ブラウザから利用できます。
+- JavaScriptランタイム (Webブラウザ、Node.js など)
 
 ## 使い方
-ページ内のテキストエリアにRubyコードを入力し、「RUN」ボタンをクリックすると実行されます。
+`execRuby`関数がRubyコードの実行エントリーポイントです。以下のパラメータを受け取ります:
+
+- `src`: 実行するRubyコードを文字列で指定
+- `opts` (オプション):
+  - `funcs`: Rubyコードから呼び出せるJavaScript関数のオブジェクト
+  - `abortctrl`: 実行を中断するためのAbortController
+  - `output`: Rubyコードの出力を処理する関数 (例: `console.log`)
+  - `debug`: デバッグ出力を有効にするフラグ
+
+使用例:
+
+```javascript
+import { execRuby } from "./execRuby.js";
+
+const funcs = {
+  myFunction: (arg) => console.log(`Called with argument: ${arg}`),
+};
+
+const output = (s) => console.log(s);
+
+const result = await execRuby(`
+  myFunction("hello")
+  puts "Ruby code executed successfully!"
+`, { funcs, output });
+```
 
 ## ライセンス
-MIT License
+このプロジェクトはMITライセンスの下にあります。
